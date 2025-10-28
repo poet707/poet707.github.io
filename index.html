@@ -128,10 +128,9 @@ Wexford, PA"></textarea>
 		let map, originMarker, radiusCircle;
 		let markers = [];
 
-		// Initialize map centered on USA; will recenter on geocoded origin
 		function initMap() {
 			map = new google.maps.Map(document.getElementById('map'), {
-				center: { lat: 39.8283, lng: -98.5795 }, // continental US
+				center: { lat: 39.8283, lng: -98.5795 },
 				zoom: 4,
 				mapTypeControl: false,
 				streetViewControl: false
@@ -168,7 +167,6 @@ Wexford, PA"></textarea>
 		});
 
 		async function geocodeAddress(address) {
-			// Use the Geocoding API via fetch (serverless-friendly)
 			const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
 			url.searchParams.set('address', address);
 			url.searchParams.set('key', window.GMAPS_KEY);
@@ -186,13 +184,7 @@ Wexford, PA"></textarea>
 		}
 
 		function drawOriginAndRadius(originLatLng, miles) {
-			// Marker
-			originMarker = new google.maps.Marker({
-				position: originLatLng,
-				map,
-				title: 'Origin'
-			});
-			// Circle
+			originMarker = new google.maps.Marker({ position: originLatLng, map, title: 'Origin' });
 			const meters = miles * 1609.344;
 			radiusCircle = new google.maps.Circle({
 				strokeColor: '#e11d48',
@@ -204,7 +196,6 @@ Wexford, PA"></textarea>
 				center: originLatLng,
 				radius: meters
 			});
-			// Fit
 			const bounds = radiusCircle.getBounds();
 			if (bounds) {
 				map.fitBounds(bounds, 60);
@@ -237,18 +228,9 @@ Wexford, PA"></textarea>
 		}
 
 		function updateSummaryBadge(allWithin, hasAny) {
-			if (!hasAny) {
-				summaryBadge.textContent = 'No results';
-				summaryBadge.className = 'badge';
-				return;
-			}
-			if (allWithin) {
-				summaryBadge.textContent = 'All within radius';
-				summaryBadge.className = 'badge ok';
-			} else {
-				summaryBadge.textContent = 'Some outside radius';
-				summaryBadge.className = 'badge no';
-			}
+			if (!hasAny) { summaryBadge.textContent = 'No results'; summaryBadge.className = 'badge'; return; }
+			if (allWithin) { summaryBadge.textContent = 'All within radius'; summaryBadge.className = 'badge ok'; }
+			else { summaryBadge.textContent = 'Some outside radius'; summaryBadge.className = 'badge no'; }
 		}
 
 		runBtn.addEventListener('click', async () => {
@@ -271,7 +253,6 @@ Wexford, PA"></textarea>
 
 				drawOriginAndRadius(originLL, radiusMiles);
 
-				// Geocode cities with gentle concurrency to avoid rate limits
 				setStatus('Geocoding cities…', true);
 				const concurrency = 5;
 				const queue = [...cityLines];
@@ -312,7 +293,6 @@ Wexford, PA"></textarea>
 					next();
 				});
 
-				// Render markers and table
 				let withinCount = 0, outsideCount = 0, errorCount = 0;
 				results.sort((a,b) => {
 					if (a.error && !b.error) return 1;
@@ -359,10 +339,11 @@ Wexford, PA"></textarea>
 			}
 		});
 	</script>
+
 	<script>
-		// Replace with your key. Consider using HTTP Referrer restrictions in Google Cloud Console.
+		// Your Google Maps API key (restrict by HTTP referrer in Google Cloud Console)
 		window.GMAPS_KEY = 'AIzaSyArCDaKE-CPhfAZlrAEQidOgD_rfFJ_rqE';
 	</script>
-	<script async defer src="https://maps.googleapis.com/maps/api/js?YOUR_GOOGLE_MAPS_API_KEY&callback=initMap"></script>
+	<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyArCDaKE-CPhfAZlrAEQidOgD_rfFJ_rqE&callback=initMap"></script>
 </body>
 </html>
