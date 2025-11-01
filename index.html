@@ -64,9 +64,11 @@ Wexford, PA"></textarea>
 				<select id="radius">
 					<option value="5">5 miles</option>
 					<option value="10" selected>10 miles</option>
+					<option value="15">13 miles</option>
 					<option value="15">15 miles</option>
+					<option value="15">17 miles</option>
 					<option value="20">20 miles</option>
-					<option value="30">30 miles</option>
+					<option value="30">25 miles</option>
 				</select>
 			</div>
 			<div class="actions">
@@ -77,6 +79,36 @@ Wexford, PA"></textarea>
 			<div class="field" style="margin-top:12px">
 				<span class="badge" id="summaryBadge">Ready</span>
 			</div>
+        <!-- Placement checker -->
+		  <h3 style="margin: 4px 0 10px;">Check Your Business Placement</h3>
+		  <div class="field">
+			<label for="placement-business">Business Name or Google Profile Link</label>
+			<input id="placement-business" type="text" placeholder="e.g., Vibe Esthetics or https://g.co/kgs/xxxxxx">
+		  </div>
+		  <div class="field">
+			<label for="placement-keyword">Search Term (e.g., botox)</label>
+			<input id="placement-keyword" type="text" placeholder="e.g., botox">
+		  </div>
+		  <div>
+			<button id="placement-btn">Check Current Placement</button>
+			<span id="placement-status" class="subtle"></span>
+		  </div>
+		  <div style="margin-top:12px;">
+			<span id="placement-result"></span>
+		  </div>
+			<!-- Place ID Extractor -->
+		  <h3 style="margin:4px 0 10px;">Extract Place ID from Google Maps Link</h3>
+		  <div class="field">
+			<label for="extract-link">Paste Google Maps Profile Link</label>
+			<input id="extract-link" type="text" placeholder="e.g., https://maps.app.goo.gl/abc123 or https://g.co/kgs/xyz789">
+		  </div>
+		  <div>
+			<button id="extract-placeid-btn">Extract Place ID</button>
+			<span id="extract-status" class="subtle"></span>
+		  </div>
+		  <div style="margin-top:12px;">
+			<span id="placeid-result" style="font-weight:bold;"></span>
+		  </div>	
 		</section>
 
 		<section class="card">
@@ -108,42 +140,6 @@ Wexford, PA"></textarea>
 			<div class="subtle" style="color:#a3312e;">
 			  Note: "Search Volume" is the number of matching places for your service term found via Google Maps, <b>not the true monthly search volume</b>. For true search volume, use a keyword research tool.
 			</div>
-		</section>
-
-		<!-- Placement checker -->
-		<section class="card" style="grid-column: 1 / -1; margin-top: 24px;">
-		  <h3 style="margin: 4px 0 10px;">Check Your Business Placement</h3>
-		  <div class="field">
-			<label for="placement-business">Business Name or Google Profile Link</label>
-			<input id="placement-business" type="text" placeholder="e.g., Vibe Esthetics or https://g.co/kgs/xxxxxx">
-		  </div>
-		  <div class="field">
-			<label for="placement-keyword">Search Term (e.g., botox)</label>
-			<input id="placement-keyword" type="text" placeholder="e.g., botox">
-		  </div>
-		  <div>
-			<button id="placement-btn">Check Current Placement</button>
-			<span id="placement-status" class="subtle"></span>
-		  </div>
-		  <div style="margin-top:12px;">
-			<span id="placement-result"></span>
-		  </div>
-		</section>
-
-		<!-- Place ID Extractor -->
-		<section class="card" style="grid-column: 1 / -1; margin-top: 24px;">
-		  <h3 style="margin:4px 0 10px;">Extract Place ID from Google Maps Link</h3>
-		  <div class="field">
-			<label for="extract-link">Paste Google Maps Profile Link</label>
-			<input id="extract-link" type="text" placeholder="e.g., https://maps.app.goo.gl/abc123 or https://g.co/kgs/xyz789">
-		  </div>
-		  <div>
-			<button id="extract-placeid-btn">Extract Place ID</button>
-			<span id="extract-status" class="subtle"></span>
-		  </div>
-		  <div style="margin-top:12px;">
-			<span id="placeid-result" style="font-weight:bold;"></span>
-		  </div>
 		</section>
 	</main>
 
