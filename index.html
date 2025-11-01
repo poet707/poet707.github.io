@@ -46,6 +46,11 @@
 				<input id="origin" type="text" placeholder="e.g., 600 Grant St, Pittsburgh, PA">
 			</div>
 			<div class="field">
+				<label for="service">Primary service</label>
+				<input id="service" type="text" placeholder="e.g., plumber, dentist, pizza">
+				<div class="subtle">What type of service are you interested in?</div>
+			</div>
+			<div class="field">
 				<label for="cities">Cities to check (one per line)</label>
 				<textarea id="cities" placeholder="e.g.
 Dormont, PA
@@ -89,22 +94,63 @@ Wexford, PA"></textarea>
 							<th>Resolved Address</th>
 							<th>Distance (mi)</th>
 							<th>Within Radius?</th>
+							<th>Search Volume</th>
+							<th>Suggested Replacement</th>
+							<th>Replacement Volume</th>
 						</tr>
 					</thead>
 					<tbody></tbody>
 					<tfoot>
-						<tr><td colspan="4" id="totalsCell"></td></tr>
+						<tr><td colspan="7" id="totalsCell"></td></tr>
 					</tfoot>
 				</table>
 			</div>
+			<div class="subtle" style="color:#a3312e;">
+			  Note: "Search Volume" is the number of matching places for your service term found via Google Maps, <b>not the true monthly search volume</b>. For true search volume, use a keyword research tool.
+			</div>
+		</section>
+
+		<!-- Placement checker -->
+		<section class="card" style="grid-column: 1 / -1; margin-top: 24px;">
+		  <h3 style="margin: 4px 0 10px;">Check Your Business Placement</h3>
+		  <div class="field">
+			<label for="placement-business">Business Name or Google Profile Link</label>
+			<input id="placement-business" type="text" placeholder="e.g., Vibe Esthetics or https://g.co/kgs/xxxxxx">
+		  </div>
+		  <div class="field">
+			<label for="placement-keyword">Search Term (e.g., botox)</label>
+			<input id="placement-keyword" type="text" placeholder="e.g., botox">
+		  </div>
+		  <div>
+			<button id="placement-btn">Check Current Placement</button>
+			<span id="placement-status" class="subtle"></span>
+		  </div>
+		  <div style="margin-top:12px;">
+			<span id="placement-result"></span>
+		  </div>
+		</section>
+
+		<!-- Place ID Extractor -->
+		<section class="card" style="grid-column: 1 / -1; margin-top: 24px;">
+		  <h3 style="margin:4px 0 10px;">Extract Place ID from Google Maps Link</h3>
+		  <div class="field">
+			<label for="extract-link">Paste Google Maps Profile Link</label>
+			<input id="extract-link" type="text" placeholder="e.g., https://maps.app.goo.gl/abc123 or https://g.co/kgs/xyz789">
+		  </div>
+		  <div>
+			<button id="extract-placeid-btn">Extract Place ID</button>
+			<span id="extract-status" class="subtle"></span>
+		  </div>
+		  <div style="margin-top:12px;">
+			<span id="placeid-result" style="font-weight:bold;"></span>
+		  </div>
 		</section>
 	</main>
 
 	<script>
-		// Math helpers
 		const toRad = d => d * Math.PI / 180;
 		function haversineMiles(lat1, lon1, lat2, lon2) {
-			const R = 3958.7613; // Earth radius in miles
+			const R = 3958.7613;
 			const dLat = toRad(lat2 - lat1);
 			const dLon = toRad(lon2 - lon1);
 			const a = Math.sin(dLat/2) ** 2 +
@@ -113,8 +159,8 @@ Wexford, PA"></textarea>
 			return R * c;
 		}
 
-		// DOM
 		const originEl = document.getElementById('origin');
+		const serviceEl = document.getElementById('service');
 		const citiesEl = document.getElementById('cities');
 		const radiusEl = document.getElementById('radius');
 		const runBtn = document.getElementById('runBtn');
@@ -159,6 +205,7 @@ Wexford, PA"></textarea>
 
 		clearBtn.addEventListener('click', () => {
 			originEl.value = '';
+			serviceEl.value = '';
 			citiesEl.value = '';
 			radiusEl.value = '10';
 			clearMap();
@@ -166,25 +213,31 @@ Wexford, PA"></textarea>
 			setStatus('');
 		});
 
-		async function geocodeAddress(address) {
-			const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
-			url.searchParams.set('address', address);
-			url.searchParams.set('key', window.GMAPS_KEY);
-			const res = await fetch(url);
-			if (!res.ok) throw new Error('Network error during geocoding');
-			const data = await res.json();
-			if (data.status !== 'OK' || !data.results?.length) throw new Error(data.error_message || 'No results');
-			const r = data.results[0];
-			return {
-				lat: r.geometry.location.lat,
-				lng: r.geometry.location.lng,
-				formatted: r.formatted_address,
-				placeId: r.place_id
-			};
+		function geocodeAddress(address) {
+			const geocoder = new google.maps.Geocoder();
+			return new Promise((resolve, reject) => {
+				geocoder.geocode({ address }, (results, status) => {
+					if (status === 'OK' && results && results.length) {
+						const r = results[0];
+						resolve({
+							lat: r.geometry.location.lat(),
+							lng: r.geometry.location.lng(),
+							formatted: r.formatted_address,
+							placeId: r.place_id
+						});
+					} else {
+						reject(new Error(status || 'No results'));
+					}
+				});
+			});
 		}
 
 		function drawOriginAndRadius(originLatLng, miles) {
-			originMarker = new google.maps.Marker({ position: originLatLng, map, title: 'Origin' });
+			originMarker = new google.maps.Marker({
+				position: originLatLng,
+				map,
+				title: 'Origin'
+			});
 			const meters = miles * 1609.344;
 			radiusCircle = new google.maps.Circle({
 				strokeColor: '#e11d48',
@@ -228,17 +281,77 @@ Wexford, PA"></textarea>
 		}
 
 		function updateSummaryBadge(allWithin, hasAny) {
-			if (!hasAny) { summaryBadge.textContent = 'No results'; summaryBadge.className = 'badge'; return; }
-			if (allWithin) { summaryBadge.textContent = 'All within radius'; summaryBadge.className = 'badge ok'; }
-			else { summaryBadge.textContent = 'Some outside radius'; summaryBadge.className = 'badge no'; }
+			if (!hasAny) {
+				summaryBadge.textContent = 'No results';
+				summaryBadge.className = 'badge';
+				return;
+			}
+			if (allWithin) {
+				summaryBadge.textContent = 'All within radius';
+				summaryBadge.className = 'badge ok';
+			} else {
+				summaryBadge.textContent = 'Some outside radius';
+				summaryBadge.className = 'badge no';
+			}
+		}
+
+		function getServiceVolumeForCity(city, service) {
+			return new Promise(resolve => {
+				const serviceObj = new google.maps.places.PlacesService(map);
+				const query = `${service} in ${city.formatted}`;
+				serviceObj.textSearch({
+					location: { lat: city.lat, lng: city.lng },
+					radius: 10000,
+					query: query
+				}, (svcResults, svcStatus) => {
+					if (svcStatus === google.maps.places.PlacesServiceStatus.OK && svcResults) {
+						resolve(svcResults.length);
+					} else {
+						resolve(0);
+					}
+				});
+			});
+		}
+
+		async function getSuggestedReplacements(origin, radiusMiles, service, inputCities, n) {
+			return new Promise((resolve) => {
+				const serviceObj = new google.maps.places.PlacesService(map);
+				const request = {
+					location: { lat: origin.lat, lng: origin.lng },
+					radius: radiusMiles * 1609.344,
+					keyword: service
+				};
+				serviceObj.textSearch(request, async (results, status) => {
+					let suggestions = [];
+					if (status === google.maps.places.PlacesServiceStatus.OK && results && results.length) {
+						for (let r of results) {
+							const name = (r.name || '').trim();
+							const addr = (r.formatted_address || r.vicinity || '').trim();
+							const display = name + (addr && !name.includes(addr) ? ', ' + addr : '');
+							// Exclude any that match the original input cities (by name or by full address)
+							if (inputCities.find(c => 
+								(display && (display.toLowerCase().includes(c.input.toLowerCase()) || (c.formatted && display.toLowerCase().includes(c.formatted.toLowerCase()))))
+							)) continue;
+							// Exclude duplicates
+							if (suggestions.find(s => s.display === display)) continue;
+							// Get volume (for text search, always 1 for each place, but for demo we use the number of matches)
+							suggestions.push({ display, volume: 1 });
+							if (suggestions.length >= n) break;
+						}
+					}
+					resolve(suggestions);
+				});
+			});
 		}
 
 		runBtn.addEventListener('click', async () => {
 			const originAddr = originEl.value.trim();
+			const service = serviceEl.value.trim();
 			const cityLines = parseCitiesInput(citiesEl.value);
 			const radiusMiles = parseFloat(radiusEl.value);
 
 			if (!originAddr) { alert('Please enter a starting address.'); return; }
+			if (!service) { alert('Please enter a primary service.'); return; }
 			if (!cityLines.length) { alert('Please enter at least one city.'); return; }
 
 			setStatus('Geocoding origin…', true);
@@ -256,7 +369,7 @@ Wexford, PA"></textarea>
 				setStatus('Geocoding cities…', true);
 				const concurrency = 5;
 				const queue = [...cityLines];
-				const results = [];
+				const cityRecords = [];
 				let active = 0;
 
 				await new Promise((resolve) => {
@@ -268,23 +381,25 @@ Wexford, PA"></textarea>
 							geocodeAddress(city)
 								.then(loc => {
 									const dist = haversineMiles(origin.lat, origin.lng, loc.lat, loc.lng);
-									results.push({
+									cityRecords.push({
 										input: city,
 										formatted: loc.formatted,
 										lat: loc.lat, lng: loc.lng,
 										distance: dist,
 										within: dist <= radiusMiles,
-										error: null
+										error: null,
+										volume: null // will fill in below
 									});
 								})
 								.catch(err => {
-									results.push({
+									cityRecords.push({
 										input: city,
 										formatted: '',
 										lat: null, lng: null,
 										distance: null,
 										within: false,
-										error: err.message || 'Geocoding failed'
+										error: err.message || 'Geocoding failed',
+										volume: null
 									});
 								})
 								.finally(() => { active--; next(); });
@@ -293,41 +408,84 @@ Wexford, PA"></textarea>
 					next();
 				});
 
+				// Get search volumes for each valid city
+				setStatus('Getting service search volumes…', true);
+
+				await Promise.all(cityRecords.map(async city => {
+					if (!city.error) {
+						city.volume = await getServiceVolumeForCity(city, service);
+					}
+				}));
+
+				const outsideCities = cityRecords.filter(c => !c.error && !c.within);
+
+				// Get replacement suggestions for each outside city (unique, not in input list)
+				let replacements = [];
+				if (outsideCities.length > 0) {
+					setStatus('Finding suggested replacements…', true);
+					replacements = await getSuggestedReplacements(
+						origin, radiusMiles, service, cityRecords, outsideCities.length
+					);
+				}
+
+				// Render table
 				let withinCount = 0, outsideCount = 0, errorCount = 0;
-				results.sort((a,b) => {
-					if (a.error && !b.error) return 1;
-					if (!a.error && b.error) return -1;
-					return (a.distance ?? Infinity) - (b.distance ?? Infinity);
-				});
-				for (const r of results) {
+				let replacementIdx = 0;
+				for (const city of cityRecords) {
 					const tr = document.createElement('tr');
-					if (r.error) {
-						tr.innerHTML = `
-							<td>${r.input}</td>
-							<td colspan="2" class="row-error">${r.error}</td>
-							<td><span class="badge no">N/A</span></td>`;
+					let suggestCell = document.createElement('td');
+					let suggestVolCell = document.createElement('td');
+
+					if (city.error) {
+						tr.innerHTML = `<td>${city.input}</td>
+							<td colspan="2" class="row-error">${city.error}</td>
+							<td><span class="badge no">N/A</span></td>
+							<td>N/A</td>
+							<td>N/A</td>`;
+						suggestCell.textContent = '';
+						suggestVolCell.textContent = '';
+						tr.appendChild(suggestCell);
+						tr.appendChild(suggestVolCell);
 						errorCount++;
 					} else {
-						addCityMarker({lat: r.lat, lng: r.lng}, r.formatted, r.within);
-						const distStr = r.distance.toFixed(2);
-						tr.innerHTML = `
-							<td>${r.input}</td>
-							<td>${r.formatted}</td>
+						addCityMarker({lat: city.lat, lng: city.lng}, city.formatted, city.within);
+						const distStr = city.distance.toFixed(2);
+						tr.innerHTML = `<td>${city.input}</td>
+							<td>${city.formatted}</td>
 							<td>${distStr}</td>
-							<td>${r.within ? '<span class="badge ok">Yes</span>' : '<span class="badge no">No</span>'}</td>`;
-						if (r.within) withinCount++; else outsideCount++;
+							<td>${city.within ? '<span class="badge ok">Yes</span>' : '<span class="badge no">No</span>'}</td>
+							<td>${city.volume}</td>`;
+
+						if (city.within) {
+							suggestCell.textContent = '-';
+							suggestVolCell.textContent = '-';
+							withinCount++;
+						} else {
+							if (replacements[replacementIdx]) {
+								const suggested = replacements[replacementIdx];
+								suggestCell.textContent = suggested.display;
+								suggestVolCell.textContent = suggested.volume;
+								replacementIdx++;
+							} else {
+								suggestCell.textContent = 'No available replacement';
+								suggestVolCell.textContent = '';
+							}
+							outsideCount++;
+						}
+						tr.appendChild(suggestCell);
+						tr.appendChild(suggestVolCell);
 					}
 					resultsTableBody.appendChild(tr);
 				}
 
-				const allWithin = outsideCount === 0 && errorCount === 0 && results.length > 0;
-				updateSummaryBadge(allWithin, results.length > 0);
+				const allWithin = outsideCount === 0 && errorCount === 0 && cityRecords.length > 0;
+				updateSummaryBadge(allWithin, cityRecords.length > 0);
 
 				resultsSummaryEl.textContent = allWithin
 					? `All ${withinCount} cities are within ${radiusMiles} miles.`
 					: `Within: ${withinCount}. Outside: ${outsideCount}. Errors: ${errorCount}.`;
 
-				totalsCell.textContent = `Total processed: ${results.length}. Radius: ${radiusMiles} miles. Origin: ${origin.formatted}.`;
+				totalsCell.textContent = `Total processed: ${cityRecords.length}. Radius: ${radiusMiles} miles. Origin: ${origin.formatted}.`;
 
 				setStatus('Done.', false);
 			} catch (e) {
@@ -338,12 +496,121 @@ Wexford, PA"></textarea>
 				runBtn.disabled = false;
 			}
 		});
-	</script>
 
+		// Placement checker
+		document.getElementById('placement-btn').addEventListener('click', async function() {
+		  const businessInput = document.getElementById('placement-business').value.trim();
+		  const keywordInput = document.getElementById('placement-keyword').value.trim();
+		  const originAddr = originEl.value.trim();
+		  const radiusMiles = parseFloat(radiusEl.value);
+		  const placementStatus = document.getElementById('placement-status');
+		  const placementResult = document.getElementById('placement-result');
+
+		  placementStatus.textContent = '';
+		  placementResult.textContent = '';
+
+		  if (!originAddr) { alert('Please enter a starting address (origin) above.'); return; }
+		  if (!businessInput) { alert('Please enter your business name or profile link.'); return; }
+		  if (!keywordInput) { alert('Please enter the search term.'); return; }
+
+		  placementStatus.innerHTML = '<span class="spinner"></span> Searching...';
+
+		  try {
+			const origin = await geocodeAddress(originAddr);
+
+			const serviceObj = new google.maps.places.PlacesService(map);
+			const request = {
+			  location: { lat: origin.lat, lng: origin.lng },
+			  radius: radiusMiles * 1609.344,
+			  query: keywordInput
+			};
+
+			serviceObj.textSearch(request, (results, status) => {
+			  placementStatus.textContent = '';
+			  if (status === google.maps.places.PlacesServiceStatus.OK && results && results.length) {
+				let foundIdx = -1;
+				let normalizedBusiness = businessInput.toLowerCase().trim();
+
+				let matchPlaceId = null;
+				const placeIdMatch = businessInput.match(/placeid=([^&]+)/i);
+				if (placeIdMatch) matchPlaceId = placeIdMatch[1];
+
+				for (let i = 0; i < results.length; i++) {
+				  const r = results[i];
+				  if (matchPlaceId && r.place_id === matchPlaceId) {
+					foundIdx = i;
+					break;
+				  }
+				  if (r.name && r.name.toLowerCase().includes(normalizedBusiness)) {
+					foundIdx = i;
+					break;
+				  }
+				  if (r.formatted_address && r.formatted_address.toLowerCase().includes(normalizedBusiness)) {
+					foundIdx = i;
+					break;
+				  }
+				}
+
+				if (foundIdx !== -1) {
+				  const found = results[foundIdx];
+				  placementResult.innerHTML = `
+					<b>${found.name}</b> appears at <b>position #${foundIdx + 1}</b> for "<b>${keywordInput}</b>" within ${radiusMiles} miles.<br>
+					Address: ${found.formatted_address || found.vicinity || 'N/A'}<br>
+					Rating: ${found.rating || 'N/A'}
+				  `;
+				} else {
+				  placementResult.textContent = `Your business was not found in the top ${results.length} results for "${keywordInput}" within ${radiusMiles} miles.`;
+				}
+			  } else {
+				placementResult.textContent = `No results found for "${keywordInput}" within ${radiusMiles} miles.`;
+			  }
+			});
+		  } catch (e) {
+			placementStatus.textContent = '';
+			placementResult.textContent = 'Error: ' + (e.message || e);
+		  }
+		});
+
+		// Place ID extractor
+		document.getElementById('extract-placeid-btn').addEventListener('click', async function() {
+		  const link = document.getElementById('extract-link').value.trim();
+		  const status = document.getElementById('extract-status');
+		  const result = document.getElementById('placeid-result');
+		  status.textContent = '';
+		  result.textContent = '';
+
+		  if (!link) {
+			status.textContent = "Please enter a Google Maps profile link.";
+			return;
+		  }
+
+		  // Try to extract placeid= from URL (if present)
+		  const placeIdMatch = link.match(/placeid=([^&]+)/i);
+		  if (placeIdMatch) {
+			result.textContent = "Place ID: " + placeIdMatch[1];
+			return;
+		  }
+
+		  // If not found, fallback: Use Places API to resolve the link to a Place ID
+		  status.innerHTML = '<span class="spinner"></span> Looking up Place ID...';
+
+		  const service = new google.maps.places.PlacesService(map);
+		  service.findPlaceFromQuery({
+			query: link,
+			fields: ['place_id', 'name']
+		  }, (results, statusCode) => {
+			status.textContent = '';
+			if (statusCode === google.maps.places.PlacesServiceStatus.OK && results && results.length) {
+			  result.textContent = "Place ID: " + results[0].place_id + " (" + results[0].name + ")";
+			} else {
+			  result.textContent = "Could not extract Place ID. Please check the link.";
+			}
+		  });
+		});
+	</script>
 	<script>
-		// Your Google Maps API key (restrict by HTTP referrer in Google Cloud Console)
 		window.GMAPS_KEY = 'AIzaSyArCDaKE-CPhfAZlrAEQidOgD_rfFJ_rqE';
 	</script>
-	<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyArCDaKE-CPhfAZlrAEQidOgD_rfFJ_rqE&callback=initMap"></script>
+	<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyArCDaKE-CPhfAZlrAEQidOgD_rfFJ_rqE&callback=initMap&libraries=places"></script>
 </body>
 </html>
